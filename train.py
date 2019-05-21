@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import pickle
 
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 from sklearn.utils import check_random_state
 
@@ -60,7 +60,7 @@ def train(filename_train,
         X, y = pickle.load(fd)
         fd.close()
     else:
-        X, y = np.load(filename_train)
+        X, y = np.load(filename_train, allow_pickle=True)
     X = np.array(X).astype(dict)
     y = np.array(y).astype(float)
     flush = np.random.permutation(len(X))

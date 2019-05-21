@@ -41,17 +41,17 @@ if not os.path.exists(outputdir+'/rawSignal.root'):
 ####################raw numpy arrays 
 print '################converting to npy################' 
 if os.path.exists(outputdir+'/unpreproc_test_background.npy'):
-    train_array_signal = np.load(outputdir+'/unpreproc_train_signal.npy')
-    test_array_signal = np.load(outputdir+'/unpreproc_test_signal.npy')
-    train_array_background = np.load(outputdir+'/unpreproc_train_background.npy')
-    test_array_background = np.load(outputdir+'/unpreproc_test_background.npy') 
+    train_array_signal = np.load(outputdir+'/unpreproc_train_signal.npy', allow_pickle=True)
+    test_array_signal = np.load(outputdir+'/unpreproc_test_signal.npy', allow_pickle=True)
+    train_array_background = np.load(outputdir+'/unpreproc_train_background.npy', allow_pickle=True)
+    test_array_background = np.load(outputdir+'/unpreproc_test_background.npy', allow_pickle=True) 
 else:
     train_array_signal, test_array_signal, train_array_background, test_array_background = makerecnnfiles_classification(outputdir+'/rawSignal.root', outputdir+'/rawBackground.root', traincut)
     np.save(outputdir+'/unpreproc_train_signal.npy', train_array_signal)
     np.save(outputdir+'/unpreproc_test_signal.npy', test_array_signal)
     np.save(outputdir+'/unpreproc_train_background.npy', train_array_background)
     np.save(outputdir+'/unpreproc_test_background.npy', test_array_background )
-    
+
 ###################preprocessing
 print '################preprocessing################'
 ordering_dict = {}
@@ -66,10 +66,10 @@ if not os.path.exists(outputdir+'/preprocessed_test_background_{}.npy'.format(or
     # preprocess_for_training(outputdir+'/unpreproc_test_background.npy',R_clustering=R_clustering,issignal=False,tosavefilename=outputdir+'/preprocessed_test_background_')
 ordering_dict = {}
 for ordering in orderings:
-    train_signal = np.load(outputdir+'/preprocessed_train_signal_{}.npy'.format(ordering))
-    test_signal = np.load(outputdir+'/preprocessed_test_signal_{}.npy'.format(ordering))
-    train_background = np.load(outputdir+'/preprocessed_train_background_{}.npy'.format(ordering))
-    test_background = np.load(outputdir+'/preprocessed_test_background_{}.npy'.format(ordering))
+    train_signal = np.load(outputdir+'/preprocessed_train_signal_{}.npy'.format(ordering), allow_pickle=True)
+    test_signal = np.load(outputdir+'/preprocessed_test_signal_{}.npy'.format(ordering), allow_pickle=True)
+    train_background = np.load(outputdir+'/preprocessed_train_background_{}.npy'.format(ordering), allow_pickle=True)
+    test_background = np.load(outputdir+'/preprocessed_test_background_{}.npy'.format(ordering), allow_pickle=True)
     X1,y1 = train_signal
     X2,y2 = train_background
     X,y=np.concatenate((X1,X2)),np.concatenate((y1,y2))
@@ -92,7 +92,7 @@ if not os.path.exists(outputdir+'/model_{}.npy'.format(orderings[0])):
               simple=False,
               n_features=14,
               n_hidden=40,
-              n_epochs=10,
+              n_epochs=1,
               batch_size=64,
               step_size=0.001,
               decay=0.5,

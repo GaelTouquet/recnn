@@ -24,7 +24,7 @@ get_ipython().run_cell_magic(u'cython', u'-f -+ -I/usr/local/include   -lm -L/us
 
 # In[]:
 def preprocess_for_training(filename,regression = False,R_clustering = 0.3,issignal = True, tosavefilename=''):
-    events = np.array(np.load(filename))
+    events = np.array(np.load(filename,allow_pickle=True))
     signal = multithreadmap(create_jet_dictionary,events,cluster = cluster,regression = regression,R = 1000.)
     
     X = np.array(signal)

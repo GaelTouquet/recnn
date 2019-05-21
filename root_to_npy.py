@@ -13,7 +13,7 @@ output format :
 
 import numpy as np
 from ROOT import TFile, TLorentzVector, TH1F
-from root_numpy import tree2array
+import uproot
 from recnn.preprocessing import multithreadmap
 
 
@@ -140,113 +140,113 @@ def etatrimtree(tree, isSignal=False, JEC=False, cutfunc=None, norm_hist=None, b
         
 def cleanarray(jets_array, addID=False):
     indexes = multithreadmap(find_first_non_particle, jets_array)
-        
     jets_array = list(jets_array)
-    
     for i in range(len(jets_array)):
-	        jets_array[i] = jets_array[i][:indexes[i]]
-            
+        jets_array[i] = jets_array[i][:indexes[i]]
+
+        
     jets_array = multithreadmap(select_particle_features,jets_array, addID=addID)
     
     return jets_array
     
         
-def converttorecnnfiles(tree, addID=False, isSignal=False, JEC=False, cutfunc=None, norm_hist=None, background_norm_hist=None):
-        #load data
-        tree, testtree = etatrimtree(tree, isSignal=isSignal, JEC=JEC, cutfunc=cutfunc, norm_hist=norm_hist, background_norm_hist=background_norm_hist)
+def converttorecnnfiles(inputfile, treename, addID=False, JEC=False, gen=False):
+        tree = uproot.open(inputfile)[treename]
+        branchname = 'genptcs' if gen else 'ptcs'
         if JEC:
-            jets_array = tree2array(tree,'ptcs')
-            genpt_array = tree2array(tree,'genpt')
-            test_jets_array = tree2array(testtree,'ptcs')
-            test_genpt_array = tree2array(testtree,'genpt')
+            jets_array = tree.arrays(branchname)[branchname]
+            genpt_array = tree.arrays('genpt')['genpt']
         else:
-            jets_array = tree2array(tree,'ptcs')
-            test_jets_array = tree2array(testtree,'ptcs')
+            jets_array = tree.arrays(branchname)[branchname]
         #process
         jets_array = cleanarray(jets_array, addID=addID)
-        test_jets_array = cleanarray(test_jets_array, addID=addID)
-        
         if JEC:
             genpt_array = list(genpt_array)
             jets_array = zip(jets_array, genpt_array)
-            test_genpt_array = list(test_genpt_array)
-            test_jets_array = zip(test_jets_array, test_genpt_array)
         
-        return jets_array, test_jets_array
+        return jets_array
 
 def makerecnnfiles_classification(rootfile_signal, rootfile_background, traincut):
         norm_hist = TH1F('normhist','normhist',150,0.,150.)
         background_norm_hist = TH1F('backgroundnormhist','backgroundnormhist',150,0.,150.)
         signal_file = TFile(rootfile_signal,'update')
         signal_tree = signal_file.Get('tree')
-        train_array_signal, test_array_signal = converttorecnnfiles(signal_tree, addID=True, isSignal=True, JEC=False, cutfunc=traincut, norm_hist=norm_hist, background_norm_hist=background_norm_hist)
+        stree, stesttree = etatrimtree(signal_tree, isSignal=True, JEC=False,cutfunc=traincut,norm_hist=norm_hist, background_norm_hist=background_norm_hist)
+        signal_file.Close()
+        train_array_signal = converttorecnnfiles(rootfile_signal, 'traintree', addID=True, JEC=False)
+        test_array_signal = converttorecnnfiles(rootfile_signal, 'testtree', addID=True, JEC=False)
         background_file = TFile(rootfile_background,'update')
         background_tree = background_file.Get('tree')
-        train_array_background, test_array_background = converttorecnnfiles(background_tree, addID=True, isSignal=False, JEC=False, cutfunc=traincut, norm_hist=norm_hist, background_norm_hist=background_norm_hist)
+        btree, btesttree = etatrimtree(background_tree, isSignal=False, JEC=False,cutfunc=traincut,norm_hist=norm_hist, background_norm_hist=background_norm_hist)
+        background_file.Close()
+        train_array_background = converttorecnnfiles(rootfile_background, 'traintree', addID=True, JEC=False)
+        test_array_background = converttorecnnfiles(rootfile_background, 'testtree', addID=True, JEC=False)
         return train_array_signal, test_array_signal, train_array_background, test_array_background
 
 
-if __name__ == '__main__':
-        import argparse
-        parser = argparse.ArgumentParser(description='Convert Dataformated ROOTfiles to numpy files usable in the notebooks. \n Usage : \n python converttorecnnfiles.py /data/gtouquet/samples_root/QCD_Pt80to120_ext2_dataformat.root --isSignal False \n OR \n python converttorecnnfiles.py all')
-        parser.add_argument("--rootfile", help="path to the ROOTfile to be converted OR 'all' which converts all usual datasets from gael's directory (for now, maybe put the rootfiles in data/ too?)",type=str, default='all')
-        parser.add_argument("--isSignal", help=" if is it a signal file (hadronic taus) or background file (QCD jets)?", action="store_true")
-        parser.add_argument("--addID", help="whether or not to add the pdgID in the output", action="store_true")
-        parser.add_argument("--JEC", help="to make the files needed for JEC regression", action="store_true")
-        parser.add_argument("--tag", help="what tag to add to name of output files", type=str, default='')
-        parser.add_argument("--etacut", help="what eta cut to require", type=float, default=2.3)
-        parser.add_argument("--ptmin", help="what ptmin cut to require", type=float, default=20.)
-        parser.add_argument("--ptmax", help="what ptmax cut to require", type=float, default=100.)
-        args = parser.parse_args()
-        if args.tag != '':
-            args.tag = '_'+args.tag
-        idtag = ''
-        if args.addID:
-            idtag = '_ID'
+# if __name__ == '__main__':
+#         import argparse
+#         parser = argparse.ArgumentParser(description='Convert Dataformated ROOTfiles to numpy files usable in the notebooks. \n Usage : \n python converttorecnnfiles.py /data/gtouquet/samples_root/QCD_Pt80to120_ext2_dataformat.root --isSignal False \n OR \n python converttorecnnfiles.py all')
+#         parser.add_argument("--rootfile", help="path to the ROOTfile to be converted OR 'all' which converts all usual datasets from gael's directory (for now, maybe put the rootfiles in data/ too?)",type=str, default='all')
+#         parser.add_argument("--isSignal", help=" if is it a signal file (hadronic taus) or background file (QCD jets)?", action="store_true")
+#         parser.add_argument("--addID", help="whether or not to add the pdgID in the output", action="store_true")
+#         parser.add_argument("--JEC", help="to make the files needed for JEC regression", action="store_true")
+#         parser.add_argument("--tag", help="what tag to add to name of output files", type=str, default='')
+#         parser.add_argument("--etacut", help="what eta cut to require", type=float, default=2.3)
+#         parser.add_argument("--ptmin", help="what ptmin cut to require", type=float, default=20.)
+#         parser.add_argument("--ptmax", help="what ptmax cut to require", type=float, default=100.)
+#         args = parser.parse_args()
+#         if args.tag != '':
+#             args.tag = '_'+args.tag
+#         idtag = ''
+#         if args.addID:
+#             idtag = '_ID'
         
 
-        if args.rootfile == 'all':
-                if not args.JEC:
-                    #Signal files
-                    sinputfile = TFile('/data/gtouquet/samples_root/RawSignal.root')
-                    stree = sinputfile.Get('tree')
-                    outROOTfiles = TFile('/data/gtouquet/samples_root/Test_Train_splitted_{}.root'.format('Signal'),'recreate')
-                    signals, testsignals = converttorecnnfiles(stree,
-                                                               addID=args.addID,
-                                                               isSignal=True,
-                                                               JEC=args.JEC,
-                                                               etacut=args.etacut,
-                                                               ptmin=args.ptmin,
-                                                               ptmax=args.ptmax)
-                    outROOTfiles.Write()
-                    outROOTfiles.Close()
-                    np.save('data/{}{}{}{}'.format('Signal', '_JEC' if args.JEC else '','_train', idtag, args.tag), signals)
-                    np.save('data/{}{}{}{}'.format('Signal', '_JEC' if args.JEC else '','_test', idtag, args.tag), testsignals)
+#         if args.rootfile == 'all':
+#                 if not args.JEC:
+#                     #Signal files
+#                     sinputfile = TFile('/data/gtouquet/samples_root/RawSignal.root')
+#                     stree = sinputfile.Get('tree')
+#                     outROOTfiles = TFile('/data/gtouquet/samples_root/Test_Train_splitted_{}.root'.format('Signal'),'recreate')
+#                     #load data
+#                     tree, testtree = etatrimtree(stree, isSignal=True, JEC=args.JEC)
+#                     signals, testsignals = converttorecnnfiles(stree,
+#                                                                addID=args.addID,
+#                                                                isSignal=True,
+#                                                                JEC=args.JEC,
+#                                                                etacut=args.etacut,
+#                                                                ptmin=args.ptmin,
+#                                                                ptmax=args.ptmax)
+#                     outROOTfiles.Write()
+#                     outROOTfiles.Close()
+#                     np.save('data/{}{}{}{}'.format('Signal', '_JEC' if args.JEC else '','_train', idtag, args.tag), signals)
+#                     np.save('data/{}{}{}{}'.format('Signal', '_JEC' if args.JEC else '','_test', idtag, args.tag), testsignals)
                     
-                #Background files
-                binputfile = TFile('/data/gtouquet/samples_root/RawBackground_17july.root')
-                btree = binputfile.Get('tree')
-                outROOTfileb = TFile('/data/gtouquet/samples_root/Test_Train_splitted_{}{}.root'.format('Background','_JEC' if args.JEC else ''),'recreate')
-                backgrounds, testbackgrounds = converttorecnnfiles(btree,
-                                                                   addID=args.addID,
-                                                                   isSignal=False,
-                                                                   JEC=args.JEC,
-                                                                   etacut=args.etacut,
-                                                                   ptmin=args.ptmin,
-                                                                   ptmax=args.ptmax)
-                outROOTfileb.Write()
-                outROOTfileb.Close()
-                np.save('data/{}{}{}{}'.format('Background', '_JEC' if args.JEC else '','_train', idtag,'_'+args.tag), backgrounds)
-                np.save('data/{}{}{}{}'.format('Background', '_JEC' if args.JEC else '','_test', idtag,'_'+args.tag), testbackgrounds)
+#                 #Background files
+#                 binputfile = TFile('/data/gtouquet/samples_root/RawBackground_17july.root')
+#                 btree = binputfile.Get('tree')
+#                 outROOTfileb = TFile('/data/gtouquet/samples_root/Test_Train_splitted_{}{}.root'.format('Background','_JEC' if args.JEC else ''),'recreate')
+#                 backgrounds, testbackgrounds = converttorecnnfiles(btree,
+#                                                                    addID=args.addID,
+#                                                                    isSignal=False,
+#                                                                    JEC=args.JEC,
+#                                                                    etacut=args.etacut,
+#                                                                    ptmin=args.ptmin,
+#                                                                    ptmax=args.ptmax)
+#                 outROOTfileb.Write()
+#                 outROOTfileb.Close()
+#                 np.save('data/{}{}{}{}'.format('Background', '_JEC' if args.JEC else '','_train', idtag,'_'+args.tag), backgrounds)
+#                 np.save('data/{}{}{}{}'.format('Background', '_JEC' if args.JEC else '','_test', idtag,'_'+args.tag), testbackgrounds)
                 
                 
-        else:
-                inputfile = TFile(args.rootfile)
-                tree = inputfile.Get('tree')
-                converttorecnnfiles(tree,
-                                    addID=args.addID,
-                                    isSignal=args.isSignal,
-                                    JEC=args.JEC,
-                                    etacut=args.etacut,
-                                    ptmin=args.ptmin,
-                                    ptmax=args.ptmax)
+#         else:
+#                 inputfile = TFile(args.rootfile)
+#                 tree = inputfile.Get('tree')
+#                 converttorecnnfiles(tree,
+#                                     addID=args.addID,
+#                                     isSignal=args.isSignal,
+#                                     JEC=args.JEC,
+#                                     etacut=args.etacut,
+#                                     ptmin=args.ptmin,
+#                                     ptmax=args.ptmax)

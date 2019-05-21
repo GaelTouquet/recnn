@@ -17,9 +17,9 @@ import os
     
     
 def test(filepath, modelpath, trainfilepath, rootfilepath, branchname, isSignal):
-    X,y = np.load(trainfilepath)
+    X,y = np.load(trainfilepath, allow_pickle=True)
     tf = create_tf_transform(X)
-    X, y = np.load(filepath)
+    X, y = np.load(filepath, allow_pickle=True)
     X_tf = apply_tf_transform(X,tf)
     y_pred = predict(X_tf,modelpath, grnn_predict_gated, regression=False)
     testfile = TFile(rootfilepath,'update')
