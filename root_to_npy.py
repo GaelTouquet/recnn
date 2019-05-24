@@ -49,7 +49,7 @@ def select_particle_features(jet, addID=False):
 	select E,px,py,pz of the particle.
 	"""
         if addID:
-	        return(jet[:,[3,0,1,2,4]])
+	        return(jet[:,[3,0,1,2,4,5,6,7]])
         else:
                 return(jet[:,[3,0,1,2]])
 

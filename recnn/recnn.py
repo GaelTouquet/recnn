@@ -316,11 +316,12 @@ def grnn_transform_gated(params, jets, return_states = False):
 def grnn_predict_gated(params, jets, regression = False):
     """make prediction"""
     h = grnn_transform_gated(params, jets)
-#    if type(h) != np.ndarray:
-#        h=np.concatenate((h._value,np.array([[jet["oldeta"]] for jet in jets])),axis=1)
-#    else :
-#        h=np.concatenate((h,np.array([[jet["oldeta"]] for jet in jets])),axis=1)
-#    h=np.concatenate((h,np.array([[jet["pt"]] for jet in jets])),axis=1)
+    #    if type(h) != np.ndarray:
+    #        h=np.concatenate((h._value,np.array([[jet["oldeta"]] for jet in jets])),axis=1)
+    #    else :
+    #        h=np.concatenate((h,np.array([[jet["oldeta"]] for jet in jets])),axis=1)
+    #    h=np.concatenate((h,np.array([[jet["pt"]] for jet in jets])),axis=1)
+
     if regression:
         h = relu(np.dot(params["W_clf"][0], h.T).T + params["b_clf"][0])
         h = relu(np.dot(params["W_clf"][1], h.T).T + params["b_clf"][1])

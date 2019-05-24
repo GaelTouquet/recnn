@@ -39,17 +39,23 @@ def apply_tf_transform(X,tf):
 def extract_component(e,component):
     return(e[component])
 
-def cast(event):
+def cast(event, swap = True):
     """
     Converts an envent into a list of p4, usable by fastjet
     """
-    a = np.zeros((len(event), 5))
-    for i, p in enumerate(event):
-        a[i, 3] = p[0]
-        a[i, 0] = p[1]
-        a[i, 1] = p[2]
-        a[i, 2] = p[3]
-        a[i, 4] = p[4]
+    a = np.zeros((len(event), 4))
+    if swap:
+        for i, p in enumerate(event):
+            a[i, 3] = p[0]
+            a[i, 0] = p[1]
+            a[i, 1] = p[2]
+            a[i, 2] = p[3]
+    else:
+        for i, p in enumerate(event):
+            a[i, 0] = p[0]
+            a[i, 1] = p[1]
+            a[i, 2] = p[2]
+            a[i, 3] = p[3]
     return(a)
 
 def create_jet_dictionary(e,cluster=None,regression=False,R=1.0):
@@ -63,10 +69,16 @@ def create_jet_dictionary(e,cluster=None,regression=False,R=1.0):
         jet["genpt"]   = ye
     t=cast(e)
     tree, content, mass, pt = cluster(t, jet_algorithm=1,R=R)[0]  # dump highest pt jet only
+    newcontent = np.zeros(shape=(len(content),8))
+    for i, pseudojet in enumerate(content):
+        if pseudojet[-1] == -1:
+            newcontent[i] = np.append(pseudojet[0:4],np.zeros(4))
+        else:
+            newcontent[i] = np.append(pseudojet[0:4],e[int(pseudojet[-1])][4:8])
     
     jet["root_id"] = 0
     jet["tree"]    = tree    # tree structure, tree[i] constains [left son, right son] of subjet i
-    jet["content"] = content # list of every p4 of every subjet used to create the full jet
+    jet["content"] = newcontent # list of every p4 of every subjet used to create the full jet
     jet["mass"]    = mass
     jet["pt"]      = pt
     jet["energy"]  = content[0, 3]
@@ -101,7 +113,17 @@ def preprocess(jet, cluster, output="kt", regression=False,R_clustering=0.3):
         genpt=jet["genpt"]
 
     ### run kt (R=0.3) on the constituents c of j, resulting in subjets sj1, sj2, ..., sjN ###
-    subjets = cluster(constituents, R=R_clustering, jet_algorithm=0)
+    subjets = cluster(cast(constituents,swap=False), R=R_clustering, jet_algorithm=0)
+    for i in range(len(subjets)):
+        tree, content, mass, pt = subjets[i]
+        newcontent = np.zeros(shape=(len(content),8))
+        for k, pseudojet in enumerate(content):
+            if pseudojet[-1] == -1:
+                newcontent[k] = np.append(pseudojet[0:4],np.zeros(4))
+            else:
+                newcontent[k] = np.append(pseudojet[0:4],constituents[int(pseudojet[-1])][4:8])
+        subjets[i] = (tree, newcontent, mass, pt)
+    
     oldeta=jet["eta"]
     oldpt=jet['pt']
     ### Rot phi ###
@@ -170,19 +192,29 @@ def preprocess(jet, cluster, output="kt", regression=False,R_clustering=0.3):
         constituents.append(content[tree[:, 0] == -1])
         
     constituents = np.vstack(constituents)
-
+    to_cluster = cast(constituents,swap=False)
     if output == "anti-kt":
-        subjets = cluster(constituents, R=100., jet_algorithm=1)
+        subjets = cluster(to_cluster, R=100., jet_algorithm=1)
     elif output == "kt":
-        subjets = cluster(constituents, R=100., jet_algorithm=0)
+        subjets = cluster(to_cluster, R=100., jet_algorithm=0)
     elif output == "cambridge":
-        subjets = cluster(constituents, R=100., jet_algorithm=2)
+        subjets = cluster(to_cluster, R=100., jet_algorithm=2)
     else:
         raise
-    
+
+    for i in range(len(subjets)):
+        tree, content, mass, pt = subjets[i]
+        newcontent = np.zeros(shape=(len(content),8))
+        for k, pseudojet in enumerate(content):
+            if pseudojet[-1] == -1:
+                newcontent[k] = np.append(pseudojet[0:4],np.zeros(4))
+            else:
+                newcontent[k] = np.append(pseudojet[0:4],constituents[int(pseudojet[-1])][4:8])
+        subjets[i] = (tree, newcontent, mass, pt)
+        
     jet["tree"]    = subjets[0][0]
     jet["content"] = subjets[0][1]
-    v = LorentzVector(jet["content"][0])
+    v = LorentzVector(jet["content"][0][:4])
     jet["phi"]     = v.phi()
     jet["eta"]     = v.eta()
     jet["energy"]  = v.E()
@@ -191,6 +223,9 @@ def preprocess(jet, cluster, output="kt", regression=False,R_clustering=0.3):
     jet["root_id"] = 0
     jet['oldeta']  = oldeta
     jet['oldpt']   = oldpt
+    if jet["mass"] < -0.1:
+        'this jet has negative mass!'
+        import pdb;pdb.set_trace()
     if regression:
         jet["genpt"]   = genpt
     return(jet)
@@ -251,10 +286,39 @@ def rewrite_content(jet):
 
 #    if jet["content"].shape[1] == 5:
 #        pflow = jet["content"][:, 4].copy()
-    content = np.zeros((len(jet["content"]),4+5))
-    content[:,:4] = jet["content"][:,:-1]
-    ids = np.abs(jet['content'][:,-1])
-    content[:,4:] = np.array([np.isclose(ids,211.),np.isclose(ids,130.),np.isclose(ids,11.),np.isclose(ids,13.),np.isclose(ids,22.)],dtype=float).T
+    content = np.zeros((len(jet["content"]),4+16))
+    content[:,:4] = jet["content"][:,:4]
+    ids = np.abs(jet['content'][:,4])
+    charges = jet['content'][:,5]
+    dzs = jet['content'][:,7]
+    for i in range(len(content)):
+        pdgid = ids[i]
+        charge = charges[i]
+        dz = dzs[i]
+        if pdgid == 130.:
+            content[i][4]=1.
+            content[i][12]=1.
+        elif pdgid == 22.:
+            content[i][5]=1.
+            content[i][13]=1.
+        elif pdgid == 211. and dz<0.2:
+            content[i][6]=1.
+            content[i][14]=1.
+        elif pdgid == 211. and dz>=0.2:
+            content[i][7]=1.
+            content[i][15]=1.
+        elif pdgid == 11. and dz<0.2:
+            content[i][8]=1.
+            content[i][16]=1.
+        elif pdgid == 11. and dz>=0.2:
+            content[i][9]=1.
+            content[i][17]=1.
+        elif pdgid == 13. and dz<0.2:
+            content[i][10]=1.
+            content[i][18]=1.
+        elif pdgid == 13. and dz>=0.2:
+            content[i][11]=1.
+            content[i][19]=1.
     tree = jet["tree"]
 
     def _rec(i):
@@ -264,11 +328,12 @@ def rewrite_content(jet):
             _rec(tree[i, 0])
             _rec(tree[i, 1])
             c = content[tree[i, 0]] + content[tree[i, 1]]
-            c[4:]=((content[tree[i, 0],3])*content[tree[i, 0],4:]+(content[tree[i, 1],3])*content[tree[i, 1],4:])/(content[tree[i, 0],3]*content[tree[i, 1],3])
+            c[11:] = ((content[tree[i, 0],3])*content[tree[i, 0],11:]+(content[tree[i, 1],3])*content[tree[i, 1],11:])/(content[tree[i, 0],3]+content[tree[i, 1],3])
             content[i] = c
 
     _rec(jet["root_id"])
 
+    jet["content"] = content
 #    if jet["content"].shape[1] == 5:
 #        jet["content"][:, 4] = pflow
 
@@ -283,7 +348,7 @@ def extract(jet, pflow=False):
     s = jet["content"].shape
 
 #    if not pflow:
-    content = np.zeros((s[0], 7+5+2))
+    content = np.zeros((s[0], 7+16+2))
 #    else:
 #        # pflow value will be one-hot encoded
 #        content = np.zeros((s[0], 7+4))
@@ -309,7 +374,7 @@ def extract(jet, pflow=False):
         content[i, 6] = theta if np.isfinite(theta) else 0.0
         content[i, 7] = jet["oldeta"]
         content[i, 8] = jet["oldpt"]
-        content[i,9:] = jet["content"][i, -5:]
+        content[i,9:] = jet["content"][i, 4:]
 #        if pflow:
 #            if jet["content"][i, 4] >= 0:
 #                content[i, 7+int(jet["content"][i, 4])] = 1.0

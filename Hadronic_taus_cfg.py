@@ -27,7 +27,7 @@ def traincut(event):
 
 outputdir = args.output_path
 R_clustering = 0.0000001
-orderings = ['anti-kt']#'kt','cambridge',,'random','seqpt','seqpt_reversed'
+orderings = ['anti-kt']#'kt','cambridge','anti-kt','random','seqpt','seqpt_reversed'
 
 ###################outputdir
 if not os.path.exists(outputdir):
@@ -90,9 +90,9 @@ if not os.path.exists(outputdir+'/model_{}.npy'.format(orderings[0])):
               outputdir+'/model_{}.npy'.format(ordering),
               regression=False,
               simple=False,
-              n_features=14,
+              n_features=25,
               n_hidden=40,
-              n_epochs=1,
+              n_epochs=10,
               batch_size=64,
               step_size=0.001,
               decay=0.5,
