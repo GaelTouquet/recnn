@@ -5,6 +5,7 @@ from functools import partial
 from rootpy.vector import LorentzVector
 from sklearn.preprocessing import RobustScaler
 import multiprocessing as mp
+import math
 
 # Data loading related
 
@@ -255,6 +256,29 @@ def _pt(v):
     pt = p / np.cosh(eta)
     return pt
 
+def deltaR2( e1, p1, e2=None, p2=None):
+    """Take either 4 arguments (eta,phi, eta,phi) or two objects that have 'eta', 'phi' methods)"""
+    if (e2 == None and p2 == None):
+        return deltaR2(e1.eta(),e1.phi(), p1.eta(), p1.phi())
+    de = e1 - e2
+    dp = deltaPhi(p1, p2)
+    return de*de + dp*dp
+
+
+def deltaR( *args ):
+    return math.sqrt( deltaR2(*args) )
+
+
+def deltaPhi( p1, p2):
+    '''Computes delta phi, handling periodic limit conditions.'''
+    res = p1 - p2
+    while res > math.pi:
+        res -= 2*math.pi
+    while res < -math.pi:
+        res += 2*math.pi
+    return res
+
+
 
 def permute_by_pt(jet, root_id=None):
     """Makes the hightest pt subjet the right subjet"""
@@ -286,7 +310,7 @@ def rewrite_content(jet):
 
 #    if jet["content"].shape[1] == 5:
 #        pflow = jet["content"][:, 4].copy()
-    content = np.zeros((len(jet["content"]),4+16))
+    content = np.zeros((len(jet["content"]),4+16+1))
     content[:,:4] = jet["content"][:,:4]
     ids = np.abs(jet['content'][:,4])
     charges = jet['content'][:,5]
@@ -319,6 +343,7 @@ def rewrite_content(jet):
         elif pdgid == 13. and dz>=0.2:
             content[i][11]=1.
             content[i][19]=1.
+        content[i][20] = 0.
     tree = jet["tree"]
 
     def _rec(i):
@@ -328,7 +353,16 @@ def rewrite_content(jet):
             _rec(tree[i, 0])
             _rec(tree[i, 1])
             c = content[tree[i, 0]] + content[tree[i, 1]]
-            c[11:] = ((content[tree[i, 0],3])*content[tree[i, 0],11:]+(content[tree[i, 1],3])*content[tree[i, 1],11:])/(content[tree[i, 0],3]+content[tree[i, 1],3])
+            c[11:19] = ((content[tree[i, 0],3])*content[tree[i, 0],11:19]+(content[tree[i, 1],3])*content[tree[i, 1],11:19])/(content[tree[i, 0],3]+content[tree[i, 1],3])
+            p1 = LorentzVector(content[tree[i, 0],0],
+                               content[tree[i, 0],1],
+                               content[tree[i, 0],2],
+                               content[tree[i, 0],3])
+            p2 = LorentzVector(content[tree[i, 1],0],
+                               content[tree[i, 1],1],
+                               content[tree[i, 1],2],
+                               content[tree[i, 1],3])
+            c[20] = deltaR(p1,p2)
             content[i] = c
 
     _rec(jet["root_id"])
@@ -348,7 +382,7 @@ def extract(jet, pflow=False):
     s = jet["content"].shape
 
 #    if not pflow:
-    content = np.zeros((s[0], 7+16+2))
+    content = np.zeros((s[0], 7+16+2+1))
 #    else:
 #        # pflow value will be one-hot encoded
 #        content = np.zeros((s[0], 7+4))

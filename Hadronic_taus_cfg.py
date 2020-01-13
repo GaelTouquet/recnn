@@ -27,7 +27,7 @@ def traincut(event):
 
 outputdir = args.output_path
 R_clustering = 0.0000001
-orderings = ['anti-kt']#'kt','cambridge','anti-kt','random','seqpt','seqpt_reversed'
+orderings = ['kt','cambridge','anti-kt','random','seqpt','seqpt_reversed']#'kt','cambridge','anti-kt','random','seqpt','seqpt_reversed'
 
 ###################outputdir
 if not os.path.exists(outputdir):
@@ -84,19 +84,19 @@ for ordering in orderings:
 #################training
 print '################training################'
 #n_epochs=10 --step_size=0.001 --decay=0.1 --verbose
-if not os.path.exists(outputdir+'/model_{}.npy'.format(orderings[0])):
-    for ordering in orderings:
-        train(outputdir+'/preprocessed_train_merged_{}.npy'.format(ordering),
-              outputdir+'/model_{}.npy'.format(ordering),
-              regression=False,
-              simple=False,
-              n_features=25,
-              n_hidden=40,
-              n_epochs=10,
-              batch_size=64,
-              step_size=0.001,
-              decay=0.5,
-              verbose=True)
+# if not os.path.exists(outputdir+'/model_{}.npy'.format(orderings[0])):
+for ordering in orderings:
+    train(outputdir+'/preprocessed_train_merged_{}.npy'.format(ordering),
+          outputdir+'/model_{}.npy'.format(ordering),
+          regression=False,
+          simple=False,
+          n_features=26,
+          n_hidden=40,
+          n_epochs=1,
+          batch_size=64,
+          step_size=0.001,
+          decay=0.75,
+          verbose=True)
 
 
 #################testing
